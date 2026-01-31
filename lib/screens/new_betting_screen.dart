@@ -38,37 +38,94 @@ class _NewBettingScreenState extends State<NewBettingScreen> {
   }
 
   void _updateBetAmount(String value) {
-    final amount = double.tryParse(value) ?? 0.0;
+    if (value.isEmpty || value.trim().isEmpty) {
+      setState(() {
+        _betState = _betState.copyWith(betAmount: 0.0);
+      });
+      _betAmountController.text = '0';
+      return;
+    }
+
+    final amount = double.tryParse(value.trim()) ?? 0.0;
+    final clampedAmount = amount.clamp(0.0, _betState.totalCoins);
+
     setState(() {
-      _betState = _betState.copyWith(
-        betAmount: amount.clamp(0.0, _betState.totalCoins),
-      );
+      _betState = _betState.copyWith(betAmount: clampedAmount);
     });
+
+    // Update controller if amount was clamped or invalid
     if (amount > _betState.totalCoins) {
       _betAmountController.text = _betState.totalCoins.toStringAsFixed(0);
+      _betState = _betState.copyWith(betAmount: _betState.totalCoins);
+    } else if (amount < 0) {
+      _betAmountController.text = '0';
+      _betState = _betState.copyWith(betAmount: 0.0);
     }
   }
 
   void _startRace() {
-    // Create temporary bet state with selected car for validation
-    final tempBetState = _betState.copyWith(selectedCar: _selectedCar);
-    
-    if (!tempBetState.canPlaceBet()) {
+    // Validate car selection first
+    if (_selectedCar == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Vui lòng chọn xe và nhập số coin cược hợp lệ!'),
+          content: Text('Vui lòng chọn xe để cược!'),
           backgroundColor: Colors.red,
+          duration: Duration(seconds: 2),
         ),
       );
       return;
     }
 
+    // Get current bet amount from controller
+    final controllerValue = _betAmountController.text.trim();
+    if (controllerValue.isEmpty || controllerValue == '0') {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Vui lòng nhập số coin cược lớn hơn 0!'),
+          backgroundColor: Colors.red,
+          duration: Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
+
+    final betAmountFromController = double.tryParse(controllerValue);
+    if (betAmountFromController == null || betAmountFromController <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Số coin cược không hợp lệ! Vui lòng nhập số lớn hơn 0.',
+          ),
+          backgroundColor: Colors.red,
+          duration: Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
+
+    if (betAmountFromController > _betState.totalCoins) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Số coin cược không được vượt quá ${_betState.totalCoins.toStringAsFixed(0)} coins!',
+          ),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
+
+    // Create bet state with selected car and final bet amount
+    final tempBetState = _betState.copyWith(
+      selectedCar: _selectedCar,
+      betAmount: betAmountFromController,
+    );
+
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => NewRaceScreen(
-          betState: tempBetState,
-        ),
+        builder: (context) => NewRaceScreen(betState: tempBetState),
       ),
     ).then((result) {
       if (result != null && result is BetState) {
@@ -97,10 +154,7 @@ class _NewBettingScreenState extends State<NewBettingScreen> {
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [
-              Colors.deepPurple.shade300,
-              Colors.indigo.shade400,
-            ],
+            colors: [Colors.deepPurple.shade300, Colors.indigo.shade400],
           ),
         ),
         child: SafeArea(

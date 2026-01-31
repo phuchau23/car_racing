@@ -37,6 +37,18 @@ class _NewRaceScreenState extends State<NewRaceScreen> {
     super.dispose();
   }
 
+  String _getCarImagePath(int index) {
+    final imagePaths = [
+      'assets/images/red_car.png',
+      'assets/images/blue_car.png',
+      'assets/images/yellow_car.png',
+    ];
+    if (index < 0 || index >= imagePaths.length) {
+      return imagePaths[0]; // fallback
+    }
+    return imagePaths[index];
+  }
+
   void _startRace() {
     if (_isRacing) return;
 
@@ -228,10 +240,30 @@ class _NewRaceScreenState extends State<NewRaceScreen> {
                             return Positioned(
                               left: carX,
                               top: carY,
-                              child: Icon(
-                                Icons.directions_car,
-                                color: _carColors[index],
-                                size: 50,
+                              child: Image.asset(
+                                _getCarImagePath(index),
+                                width: GameConstants.carWidth,
+                                height: GameConstants.carHeight,
+                                fit: BoxFit.contain,
+                                cacheWidth: GameConstants.carWidth.toInt(),
+                                cacheHeight: GameConstants.carHeight.toInt(),
+                                errorBuilder: (context, error, stackTrace) {
+                                  // Debug: print error
+                                  print(
+                                    'Error loading image: ${_getCarImagePath(index)}',
+                                  );
+                                  print('Error: $error');
+                                  return Container(
+                                    width: GameConstants.carWidth,
+                                    height: GameConstants.carHeight,
+                                    color: _carColors[index],
+                                    child: Icon(
+                                      Icons.directions_car,
+                                      color: Colors.white,
+                                      size: 40,
+                                    ),
+                                  );
+                                },
                               ),
                             );
                           }),

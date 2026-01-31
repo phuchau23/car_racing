@@ -1,0 +1,11 @@
+# yaml-language-server: $schema=https://globe.dev/globe.schema.json
+
+entrypoint: lib/main.dart
+
+build:
+  preset:
+    type: flutter
+
+preferred_regions:
+  - us-east1
+  - asia-southeast1

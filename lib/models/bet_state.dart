@@ -24,8 +24,9 @@ class BetState {
 
   bool canPlaceBet() {
     return selectedCar != null &&
-        betAmount > 0 &&
-        betAmount <= totalCoins;
+        betAmount > 0.0 &&
+        betAmount <= totalCoins &&
+        (totalCoins - betAmount) >= 0.0;
   }
 
   double calculateWinnings(int winner) {

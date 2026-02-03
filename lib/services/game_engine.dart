@@ -1,6 +1,6 @@
 import 'dart:math';
 import '../models/game_state.dart';
-import '../utils/game_constants.dart';
+import '../constants/game_constants.dart';
 
 /// Game engine that handles game loop and physics
 class GameEngine {

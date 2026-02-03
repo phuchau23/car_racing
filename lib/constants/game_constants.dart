@@ -23,7 +23,7 @@ class GameConstants {
 
   // Betting
   static const double betOdds = 2.0; // 2x multiplier if win
-  static const double initialCoins = 100.0;
+  static const double initialMoney = 100000.0; // 100,000 VNĐ
 
   // Lead change tracking
   static const int targetLeadChanges = 8; // Target 6-12 lead changes per race

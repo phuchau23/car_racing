@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'screens/new_betting_screen.dart';
+import 'screens/login_screen.dart';
 import 'utils/orientation_helper.dart';
 
 void main() {
@@ -21,7 +21,7 @@ class MyApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
         useMaterial3: true,
       ),
-      home: const NewBettingScreen(),
+      home: const LoginScreen(),
     );
   }
 }

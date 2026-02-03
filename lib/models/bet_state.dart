@@ -1,22 +1,18 @@
 /// Betting state for the game
 class BetState {
-  final double totalCoins;
+  final double totalMoney; // VNĐ
   final int? selectedCar; // 0, 1, or 2
-  final double betAmount;
+  final double betAmount; // VNĐ
 
   BetState({
-    this.totalCoins = 100.0,
+    this.totalMoney = 100000.0,
     this.selectedCar,
     this.betAmount = 0.0,
   });
 
-  BetState copyWith({
-    double? totalCoins,
-    int? selectedCar,
-    double? betAmount,
-  }) {
+  BetState copyWith({double? totalMoney, int? selectedCar, double? betAmount}) {
     return BetState(
-      totalCoins: totalCoins ?? this.totalCoins,
+      totalMoney: totalMoney ?? this.totalMoney,
       selectedCar: selectedCar ?? this.selectedCar,
       betAmount: betAmount ?? this.betAmount,
     );
@@ -25,8 +21,8 @@ class BetState {
   bool canPlaceBet() {
     return selectedCar != null &&
         betAmount > 0.0 &&
-        betAmount <= totalCoins &&
-        (totalCoins - betAmount) >= 0.0;
+        betAmount <= totalMoney &&
+        (totalMoney - betAmount) >= 0.0;
   }
 
   double calculateWinnings(int winner) {
@@ -35,5 +31,10 @@ class BetState {
       return betAmount * 2.0; // 2x odds
     }
     return 0.0;
+  }
+
+  /// Check if user has run out of money
+  bool isBroke() {
+    return totalMoney <= 0;
   }
 }

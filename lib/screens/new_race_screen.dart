@@ -1,12 +1,18 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+import 'package:audioplayers/audioplayers.dart';
 import '../models/bet_state.dart';
-import '../engine/game_engine.dart';
-import '../utils/game_constants.dart';
+import '../models/game_state.dart';
+import '../services/game_engine.dart';
+import '../constants/game_constants.dart';
 import '../utils/orientation_helper.dart';
+import '../components/car_widget.dart';
+import '../components/track_widget.dart';
+import '../components/progress_bar_widget.dart';
+import '../components/car_info_widget.dart';
 import 'new_result_screen.dart';
 
+/// Race screen - displays the racing game
 class NewRaceScreen extends StatefulWidget {
   final BetState betState;
 
@@ -20,41 +26,136 @@ class _NewRaceScreenState extends State<NewRaceScreen> {
   late GameEngine _engine;
   Timer? _gameLoop;
   bool _isRacing = false;
-  final List<Color> _carColors = [Colors.red, Colors.blue, Colors.green];
-  final List<String> _carNames = ['Car 1', 'Car 2', 'Car 3'];
+  final AudioPlayer _audioPlayer = AudioPlayer();
 
   @override
   void initState() {
     super.initState();
     OrientationHelper.setLandscape();
     _engine = GameEngine();
+    _setupAudioPlayer();
+  }
+
+  void _setupAudioPlayer() {
+    // Listen to audio player state changes
+    _audioPlayer.onPlayerStateChanged.listen((PlayerState state) {
+      print('🎵 Audio player state: $state');
+      if (state == PlayerState.playing) {
+        print('✅ Audio is now playing!');
+      } else if (state == PlayerState.paused) {
+        print('⏸️ Audio is paused');
+      } else if (state == PlayerState.stopped) {
+        print('⏹️ Audio is stopped');
+      } else if (state == PlayerState.completed) {
+        print('✅ Audio completed');
+      }
+    });
+
+    // Listen to errors
+    _audioPlayer.onLog.listen((String message) {
+      print('🎵 Audio log: $message');
+    });
+
+    // Listen to duration changes
+    _audioPlayer.onDurationChanged.listen((Duration duration) {
+      print('🎵 Audio duration: ${duration.inSeconds}s');
+    });
+
+    // Listen to position changes
+    _audioPlayer.onPositionChanged.listen((Duration position) {
+      if (position.inSeconds % 5 == 0) {
+        print('🎵 Audio position: ${position.inSeconds}s');
+      }
+    });
+  }
+
+  Future<void> _playBackgroundMusic() async {
+    try {
+      print('🎵 ===== Starting audio playback =====');
+
+      // Set player mode để phát qua loa (không bị mute)
+      await _audioPlayer.setPlayerMode(PlayerMode.mediaPlayer);
+      print('🎵 Player mode set to mediaPlayer');
+
+      // Set volume và loop mode
+      await _audioPlayer.setVolume(1.0);
+      await _audioPlayer.setReleaseMode(ReleaseMode.loop);
+      print('🎵 Volume set to 1.0, Loop mode enabled');
+
+      // Thử phát audio
+      final source = AssetSource('audio/race_screen.mp3');
+      print('🎵 Source: $source');
+      print('🎵 Attempting to play...');
+
+      // Phát trực tiếp
+      await _audioPlayer.play(source);
+      print('🎵 Play command executed');
+
+      // Đợi và kiểm tra state nhiều lần
+      for (int i = 0; i < 3; i++) {
+        await Future.delayed(const Duration(milliseconds: 500));
+        final state = _audioPlayer.state;
+        print('🎵 Check ${i + 1}: State = $state');
+
+        if (state == PlayerState.playing) {
+          print('✅ SUCCESS: Audio is playing!');
+          final duration = await _audioPlayer.getDuration();
+          print('🎵 Audio duration: ${duration?.inSeconds ?? 'unknown'}s');
+
+          // Nếu đang chạy trên emulator, cảnh báo
+          print('⚠️ NOTE: Nếu bạn đang dùng Android Emulator:');
+          print('   - Emulator có thể không phát âm thanh');
+          print('   - Hãy test trên thiết bị thật để nghe nhạc');
+          print('   - Hoặc kiểm tra Settings > Extended Controls > Audio');
+
+          return; // Thành công, thoát
+        }
+      }
+
+      // Nếu vẫn không playing, thử lại
+      print('⚠️ WARNING: Audio not playing after 3 checks');
+      print('⚠️ Trying alternative method...');
+
+      await _audioPlayer.stop();
+      await Future.delayed(const Duration(milliseconds: 300));
+      await _audioPlayer.play(source);
+
+      await Future.delayed(const Duration(milliseconds: 1000));
+      final finalState = _audioPlayer.state;
+      print('🎵 Final state: $finalState');
+
+      if (finalState == PlayerState.playing) {
+        print('✅ SUCCESS after retry!');
+      } else {
+        print('❌ Still not playing.');
+        print('❌ Please check:');
+        print('   1. Device volume is turned up');
+        print('   2. Device is not in silent/Do Not Disturb mode');
+        print('   3. Audio file exists and is valid');
+      }
+    } catch (e, stackTrace) {
+      print('❌ ERROR playing audio: $e');
+      print('❌ Stack trace: $stackTrace');
+    }
   }
 
   @override
   void dispose() {
     _gameLoop?.cancel();
+    _audioPlayer.dispose(); // Dừng và giải phóng audio player
     OrientationHelper.setAll();
     super.dispose();
   }
 
-  String _getCarImagePath(int index) {
-    final imagePaths = [
-      'assets/images/red_car.png',
-      'assets/images/blue_car.png',
-      'assets/images/yellow_car.png',
-    ];
-    if (index < 0 || index >= imagePaths.length) {
-      return imagePaths[0]; // fallback
-    }
-    return imagePaths[index];
-  }
-
-  void _startRace() {
+  void _startRace() async {
     if (_isRacing) return;
 
     setState(() {
       _isRacing = true;
     });
+
+    // Phát nhạc nền khi bắt đầu đua
+    _playBackgroundMusic();
 
     // Game loop at 60fps
     _gameLoop = Timer.periodic(
@@ -78,9 +179,16 @@ class _NewRaceScreenState extends State<NewRaceScreen> {
     );
   }
 
-  void _onRaceFinished() {
+  void _onRaceFinished() async {
     final winner = _engine.state.winner;
     if (winner == null) return;
+
+    // Dừng nhạc nền khi race kết thúc
+    try {
+      await _audioPlayer.stop();
+    } catch (e) {
+      print('Error stopping audio: $e');
+    }
 
     Future.delayed(const Duration(milliseconds: 500), () {
       if (!mounted) return;
@@ -115,31 +223,7 @@ class _NewRaceScreenState extends State<NewRaceScreen> {
           child: Column(
             children: [
               // Header
-              Container(
-                padding: const EdgeInsets.all(16.0),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      _isRacing ? 'Đang đua...' : 'Sẵn sàng',
-                      style: const TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.deepPurple,
-                      ),
-                    ),
-                    if (!_isRacing)
-                      ElevatedButton(
-                        onPressed: _startRace,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.green,
-                          foregroundColor: Colors.white,
-                        ),
-                        child: const Text('BẮT ĐẦU'),
-                      ),
-                  ],
-                ),
-              ),
+              _buildHeader(),
 
               // Race track
               Expanded(
@@ -147,7 +231,6 @@ class _NewRaceScreenState extends State<NewRaceScreen> {
                   builder: (context, constraints) {
                     final trackHeight = constraints.maxHeight;
                     final trackWidth = constraints.maxWidth;
-                    // Calculate lane positions based on actual track height
                     final laneSpacing = trackHeight / 3;
                     final laneYPositions = List.generate(3, (index) {
                       return (index + 0.5) * laneSpacing;
@@ -157,114 +240,30 @@ class _NewRaceScreenState extends State<NewRaceScreen> {
                       margin: const EdgeInsets.symmetric(horizontal: 20),
                       child: Stack(
                         children: [
-                          // Track background
-                          Positioned.fill(
-                            child: Container(
-                              decoration: BoxDecoration(
-                                gradient: LinearGradient(
-                                  begin: Alignment.topCenter,
-                                  end: Alignment.bottomCenter,
-                                  colors: [
-                                    Colors.grey.shade400,
-                                    Colors.grey.shade600,
-                                  ],
-                                ),
-                                border: Border.all(
-                                  color: Colors.grey.shade800,
-                                  width: 4,
-                                ),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: CustomPaint(
-                                painter: RoadLinesPainter(
-                                  laneY1: laneYPositions[0],
-                                  laneY2: laneYPositions[1],
-                                  trackWidth: trackWidth,
-                                ),
-                              ),
-                            ),
-                          ),
-
-                          // Start line
-                          Positioned(
-                            left: 0,
-                            top: 0,
-                            bottom: 0,
-                            child: Container(
-                              width: 6,
-                              decoration: BoxDecoration(
-                                color: Colors.green,
-                                border: Border.symmetric(
-                                  vertical: BorderSide(
-                                    color: Colors.white,
-                                    width: 2,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-
-                          // Finish line
-                          Positioned(
-                            right: 0,
-                            top: 0,
-                            bottom: 0,
-                            child: Container(
-                              width: 6,
-                              decoration: BoxDecoration(
-                                color: Colors.red,
-                                border: Border.symmetric(
-                                  vertical: BorderSide(
-                                    color: Colors.white,
-                                    width: 2,
-                                  ),
-                                ),
-                              ),
-                            ),
+                          // Track background with lines
+                          TrackWidget(
+                            trackWidth: trackWidth,
+                            trackHeight: trackHeight,
+                            laneYPositions: laneYPositions,
                           ),
 
                           // Cars
                           ...List.generate(3, (index) {
                             final progress = _engine.getProgress(index);
-                            final availableWidth =
-                                trackWidth - 40; // Account for margins
+                            final availableWidth = trackWidth - 40;
                             final carX = (availableWidth * progress).clamp(
                               0.0,
                               availableWidth - GameConstants.carWidth,
                             );
-                            // Use calculated lane Y position
                             final carY =
                                 laneYPositions[index] -
                                 GameConstants.carHeight / 2;
 
-                            return Positioned(
-                              left: carX,
-                              top: carY,
-                              child: Image.asset(
-                                _getCarImagePath(index),
-                                width: GameConstants.carWidth,
-                                height: GameConstants.carHeight,
-                                fit: BoxFit.contain,
-                                cacheWidth: GameConstants.carWidth.toInt(),
-                                cacheHeight: GameConstants.carHeight.toInt(),
-                                errorBuilder: (context, error, stackTrace) {
-                                  // Debug: print error
-                                  print(
-                                    'Error loading image: ${_getCarImagePath(index)}',
-                                  );
-                                  print('Error: $error');
-                                  return Container(
-                                    width: GameConstants.carWidth,
-                                    height: GameConstants.carHeight,
-                                    color: _carColors[index],
-                                    child: Icon(
-                                      Icons.directions_car,
-                                      color: Colors.white,
-                                      size: 40,
-                                    ),
-                                  );
-                                },
-                              ),
+                            return CarWidget(
+                              carIndex: index,
+                              progress: progress,
+                              x: carX,
+                              y: carY,
                             );
                           }),
 
@@ -275,31 +274,11 @@ class _NewRaceScreenState extends State<NewRaceScreen> {
                                 laneYPositions[0] - GameConstants.carHeight / 2,
                             child: Column(
                               children: List.generate(3, (index) {
-                                final progress = _engine.getProgress(index);
-                                return Container(
-                                  margin: EdgeInsets.only(
-                                    bottom: index < 2
-                                        ? laneSpacing - GameConstants.carHeight
-                                        : 0,
-                                  ),
-                                  width: 8,
-                                  height: GameConstants.carHeight,
-                                  decoration: BoxDecoration(
-                                    color: Colors.grey.shade300,
-                                    borderRadius: BorderRadius.circular(4),
-                                  ),
-                                  child: Align(
-                                    alignment: Alignment.bottomCenter,
-                                    child: Container(
-                                      width: 8,
-                                      height:
-                                          GameConstants.carHeight * progress,
-                                      decoration: BoxDecoration(
-                                        color: _carColors[index],
-                                        borderRadius: BorderRadius.circular(4),
-                                      ),
-                                    ),
-                                  ),
+                                return ProgressBarWidget(
+                                  carIndex: index,
+                                  progress: _engine.getProgress(index),
+                                  laneSpacing: laneSpacing,
+                                  isLast: index == 2,
                                 );
                               }),
                             ),
@@ -312,84 +291,56 @@ class _NewRaceScreenState extends State<NewRaceScreen> {
               ),
 
               // Info panel
-              Container(
-                padding: const EdgeInsets.all(16.0),
-                color: Colors.white.withOpacity(0.9),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  children: List.generate(3, (index) {
-                    return Column(
-                      children: [
-                        Text(
-                          _carNames[index],
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: _carColors[index],
-                          ),
-                        ),
-                        Text(
-                          '${rankings[index]}',
-                          style: const TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        Text(
-                          '${state.speeds[index].toStringAsFixed(0)} px/s',
-                          style: const TextStyle(fontSize: 12),
-                        ),
-                      ],
-                    );
-                  }),
-                ),
-              ),
+              _buildInfoPanel(state, rankings),
             ],
           ),
         ),
       ),
     );
   }
-}
 
-// Road lines painter
-class RoadLinesPainter extends CustomPainter {
-  final double laneY1;
-  final double laneY2;
-  final double trackWidth;
-
-  RoadLinesPainter({
-    required this.laneY1,
-    required this.laneY2,
-    required this.trackWidth,
-  });
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = Colors.yellow.shade700
-      ..strokeWidth = 3
-      ..style = PaintingStyle.stroke;
-
-    // Dashed lines
-    const dashLength = 30.0;
-    const dashSpace = 20.0;
-    double currentX = 20;
-
-    while (currentX < trackWidth - 20) {
-      canvas.drawLine(
-        Offset(currentX, laneY1),
-        Offset(currentX + dashLength, laneY1),
-        paint,
-      );
-      canvas.drawLine(
-        Offset(currentX, laneY2),
-        Offset(currentX + dashLength, laneY2),
-        paint,
-      );
-      currentX += dashLength + dashSpace;
-    }
+  Widget _buildHeader() {
+    return Container(
+      padding: const EdgeInsets.all(16.0),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            _isRacing ? 'Đang đua...' : 'Sẵn sàng',
+            style: const TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+              color: Colors.deepPurple,
+            ),
+          ),
+          if (!_isRacing)
+            ElevatedButton(
+              onPressed: _startRace,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.green,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('BẮT ĐẦU'),
+            ),
+        ],
+      ),
+    );
   }
 
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  Widget _buildInfoPanel(GameState state, List<int> rankings) {
+    return Container(
+      padding: const EdgeInsets.all(16.0),
+      color: Colors.white.withOpacity(0.9),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        children: List.generate(3, (index) {
+          return CarInfoWidget(
+            carIndex: index,
+            ranking: rankings[index],
+            speed: state.speeds[index],
+          );
+        }),
+      ),
+    );
+  }
 }

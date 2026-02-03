@@ -1,5 +1,5 @@
 import 'dart:math';
-import '../utils/game_constants.dart';
+import '../constants/game_constants.dart';
 
 /// Game state for racing game
 class GameState {
